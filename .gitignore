@@ -1,6 +1,6 @@
 node_modules/
-reports/
-input/
+/reports/
+/input/
 *.ghidra
 *.gpr
 *.rep
