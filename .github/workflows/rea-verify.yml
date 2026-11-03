@@ -1,0 +1,47 @@
+name: REA - Install and Verify
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/rea-verify.yml'
+      - 'README.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rea-install-verify
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Install upstream REA on GitHub runner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Prepare Node.js (REA requirement)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - name: Install official pinned REA release
+        run: |
+          set -Eeuo pipefail
+          npm install --global --no-audit --no-fund rea-agents@6.8.0
+      - name: Verify REA CLI and provider discovery
+        run: |
+          set -Eeuo pipefail
+          mkdir -p reports
+          node --version
+          npm --version
+          rea --version | tee reports/rea-version.txt
+          rea providers --json | tee reports/providers.json
+      - name: Upload non-sensitive smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rea-install-report
+          path: reports/
+          retention-days: 1
+          if-no-files-found: ignore

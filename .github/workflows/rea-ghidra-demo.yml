@@ -1,0 +1,69 @@
+name: REA - Ghidra Cloud Demo
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rea-ghidra-demo
+  cancel-in-progress: false
+
+jobs:
+  ghidra-demo:
+    name: Install REA + Ghidra and analyze sample native binary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout configuration and scripts
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - name: Install JDK 21 (Ghidra 12.1.4 requirement)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify native host dependencies
+        run: |
+          set -Eeuo pipefail
+          for c in ps curl unzip sha256sum gcc java javac timeout; do command -v "$c" >/dev/null; done
+      - name: Install official pinned REA package
+        run: |
+          set -Eeuo pipefail
+          npm install --global --no-audit --no-fund rea-agents@6.8.0
+          rea --version
+      - name: Download and verify official Ghidra release
+        run: bash scripts/install-ghidra.sh
+      - name: Build harmless sample binary
+        run: |
+          set -Eeuo pipefail
+          mkdir -p input reports
+          cat > input/sample.c <<'SOURCE'
+          #include <stdio.h>
+          int fxga_sum(int a, int b) { return a+b; }
+          int main(void) { printf("REA demo: %d\n", fxga_sum(8, 4)); return 0; }
+          SOURCE
+          gcc -O0 -g -fno-pie -no-pie -o input/rea-demo input/sample.c
+          file input/rea-demo
+      - name: REA Ghidra readiness and analysis
+        run: |
+          set -Eeuo pipefail
+          rea --version | tee reports/rea-version.txt
+          timeout -k 10s 2m rea doctor --provider ghidra --json | tee reports/ghidra-doctor.json
+          timeout -k 10s 8m rea inspect "$GITHUB_WORKSPACE/input/rea-demo" --provider ghidra --json > reports/rea-native-overview.json
+          test -s reports/rea-native-overview.json
+          echo 'REA native overview written to reports/rea-native-overview.json'
+      - name: Upload demo reports (public-safe test only)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rea-ghidra-demo-results
+          path: reports/
+          retention-days: 1
+          if-no-files-found: ignore
