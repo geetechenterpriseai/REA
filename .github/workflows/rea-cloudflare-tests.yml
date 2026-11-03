@@ -62,3 +62,25 @@ jobs:
           if (names.length !== 5 || names.some(x => x === 'rea_start_ghidra_demo')) throw new Error('Public MCP tool allowlist is incorrect');
           console.log('Cloudflare public MCP tools/list passed:', names.join(', '));
           NODE
+      - name: Check anonymous Github status and published report tools
+        run: |
+          set -Eeuo pipefail
+          for tool in rea_list_runs rea_get_latest_report; do
+            curl --proto '=https' --tlsv1.2 --fail --silent --show-error --max-time 20 \
+              -X POST -H "Content-Type: application/json" \
+              -d "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"${tool}\",\"arguments\":{}}}" \
+              "https://fxga-rea-cloud-mcp.few-nose.workers.dev/mcp" > "check-${tool}.json"
+          done
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const read = name => {
+            const result = JSON.parse(fs.readFileSync('check-' + name + '.json','utf8')).result;
+            if (result?.isError !== false || !result.content?.[0]?.text) throw new Error(name + ' reported an MCP error');
+            return JSON.parse(result.content[0].text);
+          };
+          const runs = read('rea_list_runs');
+          if (!Array.isArray(runs.runs)) throw new Error('GitHub runs response is invalid');
+          const report = read('rea_get_latest_report');
+          if (report.kind !== 'fxga-rea-ghidra-demo' || !Number.isInteger(report.run_id)) throw new Error('Public REA report was unavailable');
+          console.log('Anonymous Cloudflare GitHub API: OK; latest published report run', report.run_id);
+          NODE
