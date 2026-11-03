@@ -1,5 +1,16 @@
 # FXGA REA — Cloud Reverse Engineering
 
+## Cloudflare gateway — deployed (protected, not yet connected to ChatGPT)
+
+- Endpoint: `https://fxga-rea-cloud-mcp.few-nose.workers.dev/mcp`
+- Health: `https://fxga-rea-cloud-mcp.few-nose.workers.dev/health`
+- Worker: `fxga-rea-cloud-mcp` in the **FX Global Avengers Trading Academy** Cloudflare account
+- Storage: Cloudflare KV `FXGA_REA_MCP_RESULTS` for sanitized demo results (7-day TTL)
+- Source, security, and manual secret setup: [`cloudflare/README.md`](cloudflare/README.md)
+- Cloudflare gateway and GitHub Ghidra demo are installed. The gateway is **fail-closed** until `MCP_AUTH_TOKEN` is configured in Worker Secrets. GitHub workflow dispatch also requires a restricted `GITHUB_TOKEN`; report callbacks require a matching secret in Cloudflare and GitHub Actions.
+- Native ChatGPT custom MCP sign-in is **not connected**: the gateway currently implements bearer authorization, not an OAuth authorization server.
+
+
 This repository is configured to install **REA (Reverse Engineer Anything)** from [morluto/rea](https://github.com/morluto/rea) using ephemeral **GitHub Actions Linux runners**. No Windows PC is required.
 
 ## Use the GitHub cloud installation
