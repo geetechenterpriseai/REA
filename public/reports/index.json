@@ -1,8 +1,16 @@
 {
   "kind": "fxga-rea-ghidra-demo-index",
   "repository": "geetechenterpriseai/REA",
-  "updated_at": "2026-11-03T17:56:42.858Z",
+  "updated_at": "2026-11-03T18:01:31.114Z",
   "runs": [
+    {
+      "id": 41689600556,
+      "name": "REA - Ghidra Cloud Demo",
+      "status": "completed",
+      "conclusion": "success",
+      "published_at": "2026-11-03T18:01:31.111Z",
+      "url": "https://github.com/geetechenterpriseai/REA/actions/runs/41689600556"
+    },
     {
       "id": 41688803140,
       "name": "REA - Ghidra Cloud Demo",
