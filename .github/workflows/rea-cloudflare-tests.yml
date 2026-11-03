@@ -75,7 +75,7 @@ jobs:
           import fs from 'node:fs';
           const read = name => {
             const result = JSON.parse(fs.readFileSync('check-' + name + '.json','utf8')).result;
-            if (result?.isError !== false || !result.content?.[0]?.text) throw new Error(name + ' reported an MCP error');
+            if (result?.isError !== false || !result.content?.[0]?.text) throw new Error(name + ' reported an MCP error: ' + JSON.stringify(result).slice(0,600));
             return JSON.parse(result.content[0].text);
           };
           const runs = read('rea_list_runs');
