@@ -41,7 +41,7 @@ jobs:
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const h = JSON.parse(fs.readFileSync('health.json', 'utf8'));
-          if (h.service !== 'fxga-rea-cloud-mcp' || !h.status !== 'public_read_only') {
+          if (h.service !== 'fxga-rea-cloud-mcp' || h.status !== 'public_read_only') {
             throw new Error('Unexpected Cloudflare gateway health');
           }
           console.log('Cloudflare live health passed; access state:', h.status);
