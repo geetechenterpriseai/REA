@@ -32,3 +32,25 @@ jobs:
           set -Eeuo pipefail
           node --check cloudflare/worker.mjs
           node --test cloudflare/worker.test.mjs
+      - name: Smoke-test live Cloudflare endpoint
+        run: |
+          set -Eeuo pipefail
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --max-time 20 \
+            "https://fxga-rea-cloud-mcp.few-nose.workers.dev/health" > health.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const h = JSON.parse(fs.readFileSync('health.json', 'utf8'));
+          if (h.service !== 'fxga-rea-cloud-mcp' || !['locked', 'protected'].includes(h.status)) {
+            throw new Error('Unexpected Cloudflare gateway health');
+          }
+          console.log('Cloudflare live health passed; auth state:', h.status);
+          NODE
+          status=$(curl --proto '=https' --tlsv1.2 --silent --show-error --max-time 20 \
+            -o response.json -w "%{http_code}" -X POST -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
+            "https://fxga-rea-cloud-mcp.few-nose.workers.dev/mcp")
+          if [[ "$status" != "503" && "$status" != "401" ]]; then
+            echo "Expected protected or locked MCP endpoint, got HTTP $status"
+            exit 1
+          fi
+          echo "Cloudflare MCP endpoint rejects missing credentials: HTTP $status"
