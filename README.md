@@ -10,9 +10,9 @@
 
 ## How it works
 
-The Cloudflare Worker exposes a **public, read-only** Model Context Protocol endpoint backed by **public GitHub API endpoints**. It does not need Cloudflare secrets, GitHub personal access tokens, OAuth, KV storage, or a running Windows PC.
+The Cloudflare Worker exposes a **public, read-only** Model Context Protocol endpoint backed by **published public GitHub CDN files**. It does not need Cloudflare secrets, GitHub personal access tokens, OAuth, KV storage, or a running Windows PC.
 
-Available tools: `rea_list_runs`, `rea_get_run`, `rea_list_artifacts`, `rea_get_report`, and `rea_get_latest_report`. Tools are fixed to the `geetechenterpriseai/REA` public repository, support bounded read operations, and never accept executable commands, uploads, or private targets.
+Available tools (completed published demo runs, not live run status): `rea_list_runs`, `rea_get_run`, `rea_list_artifacts`, `rea_get_report`, and `rea_get_latest_report`. Tools are fixed to the `geetechenterpriseai/REA` public repository, support bounded read operations, and never accept executable commands, uploads, or private targets.
 
 To run a new demo, use the GitHub Actions UI and select **REA - Ghidra Cloud Demo → Run workflow**. GitHub requires you to sign in to dispatch it; **anonymous GitHub Actions job creation is not supported**. The job installs `rea-agents@6.8.0` and Ghidra 12.1.4, analyzes the harmless program it compiles itself, and publishes the sanitized sample result to the repository. GitHub supplies its standard short-lived Actions authorization internally for the report commit. **You do not need to create or configure credentials.**
 
