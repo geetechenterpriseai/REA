@@ -2,14 +2,4 @@ name = "fxga-rea-cloud-mcp"
 main = "worker.mjs"
 compatibility_date = "2026-11-01"
 workers_dev = true
-
-[[kv_namespaces]]
-binding = "RESULTS"
-id = "7ec113c62f4e400e8edf2f5dd9bb5b43"
-
-[vars]
-ENABLE_DISPATCH = "false"
-
-# Secrets are NOT included in source control:
-# MCP_AUTH_TOKEN, GITHUB_TOKEN, REA_CALLBACK_TOKEN
-# Never add sensitive token values to this public repository.
+# No KV, secrets, tokens, OAuth, or account-specific bindings required.
