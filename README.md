@@ -1,37 +1,27 @@
-# FXGA REA — Cloud Reverse Engineering
+# FXGA REA — Public Cloudflare MCP
 
-## Cloudflare gateway — deployed (protected, not yet connected to ChatGPT)
+**Open access. No credentials or API keys to configure.**
 
-- Endpoint: `https://fxga-rea-cloud-mcp.few-nose.workers.dev/mcp`
-- Health: `https://fxga-rea-cloud-mcp.few-nose.workers.dev/health`
-- Worker: `fxga-rea-cloud-mcp` in the **FX Global Avengers Trading Academy** Cloudflare account
-- Storage: Cloudflare KV `FXGA_REA_MCP_RESULTS` for sanitized demo results (7-day TTL)
-- Source, security, and manual secret setup: [`cloudflare/README.md`](cloudflare/README.md)
-- Cloudflare gateway and GitHub Ghidra demo are installed. The gateway is **fail-closed** until `MCP_AUTH_TOKEN` is configured in Worker Secrets. GitHub workflow dispatch also requires a restricted `GITHUB_TOKEN`; report callbacks require a matching secret in Cloudflare and GitHub Actions.
-- Native ChatGPT custom MCP sign-in is **not connected**: the gateway currently implements bearer authorization, not an OAuth authorization server.
+- Public MCP endpoint: `https://fxga-rea-cloud-mcp.few-nose.workers.dev/mcp`
+- Public health check: `https://fxga-rea-cloud-mcp.few-nose.workers.dev/health`
+- GitHub repo: `https://github.com/geetechenterpriseai/REA`
+- Trigger harmless native-binary demonstration: `https://github.com/geetechenterpriseai/REA/actions/workflows/rea-ghidra-demo.yml`
+- View latest demo report (once published): `https://github.com/geetechenterpriseai/REA/blob/main/public/reports/latest.json`
 
+## How it works
 
-This repository is configured to install **REA (Reverse Engineer Anything)** from [morluto/rea](https://github.com/morluto/rea) using ephemeral **GitHub Actions Linux runners**. No Windows PC is required.
+The Cloudflare Worker exposes a **public, read-only** Model Context Protocol endpoint backed by **public GitHub API endpoints**. It does not need Cloudflare secrets, GitHub personal access tokens, OAuth, KV storage, or a running Windows PC.
 
-## Use the GitHub cloud installation
+Available tools: `rea_list_runs`, `rea_get_run`, `rea_list_artifacts`, `rea_get_report`, and `rea_get_latest_report`. Tools are fixed to the `geetechenterpriseai/REA` public repository, support bounded read operations, and never accept executable commands, uploads, or private targets.
 
-1. Open [Actions](https://github.com/geetechenterpriseai/REA/actions).
-2. Run **REA - Install and Verify** to install the official pinned npm release `rea-agents@6.8.0` and inspect available providers.
-3. Run **REA - Ghidra Cloud Demo** to install Java 21 and Ghidra 12.1.4, compile a harmless ELF sample, and analyze it using `rea inspect --provider ghidra`.
-4. Read each job's log and download its one-day test report artifact.
+To run a new demo, use the GitHub Actions UI and select **REA - Ghidra Cloud Demo → Run workflow**. GitHub requires you to sign in to dispatch it; **anonymous GitHub Actions job creation is not supported**. The job installs `rea-agents@6.8.0` and Ghidra 12.1.4, analyzes the harmless program it compiles itself, and publishes the sanitized sample result to the repository. GitHub supplies its standard short-lived Actions authorization internally for the report commit. **You do not need to create or configure credentials.**
 
-The REA installation is **ephemeral**: GitHub Actions provides a new VM for each run. Neither REA nor Ghidra is a permanent server here. ChatGPT custom MCP access requires a separately deployed authenticated remote gateway; **none is deployed by these workflows**.
+GitHub's runner is temporary, not a permanent VM. The Cloudflare Worker is an always-accessible lightweight gateway to existing public results. A custom ChatGPT MCP integration still depends on your ChatGPT plan's permitted connection types and registration workflow.
 
-## Pinned upstream software
+## Security and cost
 
-- REA: [`rea-agents` 6.8.0](https://www.npmjs.com/package/rea-agents), [official repository](https://github.com/morluto/rea) (MIT license, upstream copyright morluto).
-- Ghidra: [NSA Ghidra 12.1.4](https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_12.1.4_build), official SHA-256 checked before extraction.
-- Node: 24.22.1; JDK: Temurin 21 (native analysis job).
+**This is intentionally public.** Anyone with its URL can read its tools and published harmless demo reports. No unrestricted remote workflow dispatch is exposed, so strangers cannot consume GitHub Actions minutes through the Worker. Private `.ex5`, `.dll`, or other proprietary binaries must not be uploaded to this public repository.
 
-## Security and usage
+Only public information is returned. Cloudflare Workers usage and GitHub Actions usage are subject to their free-tier quotas and fair-use terms. Run the example workflow only when you need it. The public job publishes the latest report and retains up to ten per-run files, to limit repository growth.
 
-**Important: this repository is public.** Do not add confidential binaries, API keys, client data, or proprietary reverse-engineering results. The demonstration workflow only analyzes a binary it compiles itself. It does not accept arbitrary shell commands or target URLs. GitHub-hosted Actions logs and artifacts in a public repository may be visible to others. For private targets, first move to a private repository and design a secure input-storage process.
-
-Both workflows use GitHub `contents: read` permissions, limited runtimes, manual-only Ghidra execution, no secret-bearing jobs, and one-day report retention. Actual GitHub usage and costs depend on account limits and billing settings.
-
-Read [SECURITY.md](SECURITY.md) for controls. Upstream [Ghidra setup documentation](https://github.com/morluto/rea/blob/main/docs/installation.md#ghidra) covers local native engine requirements. For existing REA commands, run `rea --help` or `rea providers --json` inside the workflow.
+Cloudflare deployment source and details: [`cloudflare/README.md`](cloudflare/README.md). Full source of REA upstream: [morluto/rea](https://github.com/morluto/rea).
