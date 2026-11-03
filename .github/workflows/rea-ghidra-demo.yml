@@ -117,6 +117,17 @@ jobs:
           fs.writeFileSync(path.join(dest, 'latest.json'), payload);
           const ids = fs.readdirSync(dest).filter(x => /^\d+\.json$/.test(x)).sort((a,b) => Number(a.slice(0,-5))-Number(b.slice(0,-5)));
           for (const name of ids.slice(0, -10)) fs.unlinkSync(path.join(dest, name));
+          const retained = fs.readdirSync(dest).filter(x => /^\d+\.json$/.test(x)).sort((a,b)=>Number(b.slice(0,-5))-Number(a.slice(0,-5)));
+          const index = {
+            kind: 'fxga-rea-ghidra-demo-index',
+            repository: 'geetechenterpriseai/REA',
+            updated_at: new Date().toISOString(),
+            runs: retained.map(name => {
+              const item = JSON.parse(fs.readFileSync(path.join(dest,name),'utf8'));
+              return { id: item.run_id, name: 'REA - Ghidra Cloud Demo', status: 'completed', conclusion: 'success', published_at: item.published_at, url: item.run_url };
+            }),
+          };
+          fs.writeFileSync(path.join(dest, 'index.json'), JSON.stringify(index, null, 2) + '\n');
           NODE
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
