@@ -40,17 +40,24 @@ jobs:
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const h = JSON.parse(fs.readFileSync('health.json', 'utf8'));
-          if (h.service !== 'fxga-rea-cloud-mcp' || !['locked', 'protected'].includes(h.status)) {
+          if (h.service !== 'fxga-rea-cloud-mcp' || !h.status !== 'public_read_only') {
             throw new Error('Unexpected Cloudflare gateway health');
           }
-          console.log('Cloudflare live health passed; auth state:', h.status);
+          console.log('Cloudflare live health passed; access state:', h.status);
           NODE
           status=$(curl --proto '=https' --tlsv1.2 --silent --show-error --max-time 20 \
             -o response.json -w "%{http_code}" -X POST -H "Content-Type: application/json" \
             -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
             "https://fxga-rea-cloud-mcp.few-nose.workers.dev/mcp")
-          if [[ "$status" != "503" && "$status" != "401" ]]; then
-            echo "Expected protected or locked MCP endpoint, got HTTP $status"
+          if [[ "$status" != "200" ]]; then
+            echo "Expected anonymous MCP tools/list HTTP 200, got HTTP $status"
+            cat response.json
             exit 1
           fi
-          echo "Cloudflare MCP endpoint rejects missing credentials: HTTP $status"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const rpc = JSON.parse(fs.readFileSync('response.json', 'utf8'));
+          const names = rpc.result?.tools?.map(x=>x.name) || [];
+          if (names.length !== 5 || names.some(x => x === 'rea_start_ghidra_demo')) throw new Error('Public MCP tool allowlist is incorrect');
+          console.log('Cloudflare public MCP tools/list passed:', names.join(', '));
+          NODE
