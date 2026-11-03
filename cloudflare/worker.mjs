@@ -119,7 +119,7 @@ async function callTool(name, args) {
   }
   if (name === "rea_list_artifacts") {
     const id = requireRunId(args.run_id);
-    const run = await github("/actions/runs/" + id, env);
+    const run = await github("/actions/runs/" + id);
     if (run.name !== WORKFLOW_NAME) throw new Error("Only demo reports are supported");
     const data = await github("/actions/runs/" + id + "/artifacts?per_page=10");
     return {
@@ -186,7 +186,7 @@ async function mcp(request) {
   if (req.method === "tools/list") return responseJson({ jsonrpc: "2.0", id, result: { tools: availableTools() } });
   if (req.method === "tools/call") {
     const name = req.params && req.params.name;
-    if (typeof name !== "string" || !availableTools(env).some(t => t.name === name)) {
+    if (typeof name !== "string" || !availableTools().some(t => t.name === name)) {
       return jsonRpcError(id, -32602, "Unknown or unavailable tool");
     }
     try {
@@ -203,7 +203,7 @@ async function mcp(request) {
   return jsonRpcError(id, -32601, "Method not found");
 }
 export default {
-  async fetch(request, env) {
+  async fetch(request) {
     const url = new URL(request.url);
     if (url.pathname === "/health" && request.method === "GET") {
       return responseJson({
