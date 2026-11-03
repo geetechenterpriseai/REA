@@ -63,6 +63,32 @@ jobs:
           timeout -k 10s 8m rea inspect "$GITHUB_WORKSPACE/input/rea-demo" --provider ghidra --json > reports/rea-native-overview.json
           test -s reports/rea-native-overview.json
           echo 'REA native overview written to reports/rea-native-overview.json'
+      - name: Publish demo-only analysis summary to Cloudflare
+        if: success()
+        env:
+          REA_CALLBACK_TOKEN: ${{ secrets.REA_CALLBACK_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          if [ -z "${REA_CALLBACK_TOKEN:-}" ]; then
+            echo "Cloudflare callback disabled (repository secret REA_CALLBACK_TOKEN is missing)"
+            exit 0
+          fi
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const overview = JSON.parse(readFileSync('reports/rea-native-overview.json', 'utf8'));
+          const payload = {
+            kind: 'fxga-rea-ghidra-demo',
+            run_id: Number(process.env.GITHUB_RUN_ID),
+            excerpt: JSON.stringify(overview).slice(0, 12000)
+          };
+          writeFileSync('reports/cloudflare-callback.json', JSON.stringify(payload));
+          NODE
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --retry 2 \
+            -X POST \
+            -H "Authorization: Bearer ${REA_CALLBACK_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data-binary @reports/cloudflare-callback.json \
+            "https://fxga-rea-cloud-mcp.few-nose.workers.dev/reports/upload"
       - name: Upload demo reports (public-safe test only)
         if: always()
         uses: actions/upload-artifact@v4
