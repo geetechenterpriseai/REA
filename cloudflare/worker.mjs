@@ -4,7 +4,7 @@
 
 const REPO = "geetechenterpriseai/REA";
 const WORKFLOW_NAME = "REA - Ghidra Cloud Demo";
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 
 function responseJson(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
@@ -30,25 +30,24 @@ function safeRun(run) {
     url: run.html_url, branch: run.head_branch,
   };
 }
-async function github(path) {
-  const headers = {
-    "Accept": "application/vnd.github+json",
-    "User-Agent": "FXGA-REA-Cloud-MCP",
-    "X-GitHub-Api-Version": "2022-11-28",
-  };
-  const res = await fetch("https://api.github.com/repos/" + REPO + path, {
+// Anonymous, fixed-path public CDN reads; no GitHub REST API or credentials.
+async function readPublicFile(filename) {
+  if (!/^(latest|index|[1-9][0-9]{0,13})\.json$/.test(filename)) throw new Error("Invalid report filename");
+  const url = "https://raw.githubusercontent.com/" + REPO + "/main/public/reports/" + filename;
+  const res = await fetch(url, {
     method: "GET",
-    headers,
     redirect: "manual",
-    signal: AbortSignal.timeout(12000),
+    signal: AbortSignal.timeout(10000),
+    headers: { "Accept": "application/json" },
   });
-  if (!res.ok) {
-    const allowedError = res.status === 401 || res.status === 403 || res.status === 404 || res.status === 429
-      ? "GitHub returned HTTP " + res.status + " (verify repository permissions or rate limits)"
-      : "GitHub returned HTTP " + res.status;
-    throw new Error(allowedError);
-  }
-  return res.json();
+  if (res.status === 404) throw new Error("Public report is not published");
+  if (!res.ok) throw new Error("Public GitHub report CDN returned HTTP " + res.status);
+  if (Number(res.headers.get("content-length") || 0) > 24000) throw new Error("Report too large");
+  const body = await res.text();
+  if (body.length > 24000) throw new Error("Report too large");
+  const data = JSON.parse(body);
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Invalid public report");
+  return data;
 }
 function inputNumber(value, fallback, min, max) {
   if (value === undefined) return fallback;
@@ -63,19 +62,19 @@ function requireRunId(value) {
 const baseTools = [
   {
     name: "rea_list_runs",
-    description: "List recent REA GitHub Actions cloud job statuses (read-only).",
+    description: "List recent completed REA Ghidra demo reports published to a public repository (read-only; not live job status).",
     inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 10, default: 5 } }, additionalProperties: false },
     annotations: { readOnlyHint: true },
   },
   {
     name: "rea_get_run",
-    description: "Get status, conclusion, and bounded step details for a known GitHub Actions run ID (read-only).",
+    description: "Get a published successful Ghidra demo run's summary (read-only).",
     inputSchema: { type: "object", properties: { run_id: { type: "integer", minimum: 1 } }, required: ["run_id"], additionalProperties: false },
     annotations: { readOnlyHint: true },
   },
   {
     name: "rea_list_artifacts",
-    description: "List report archive metadata for a known run. GitHub may require signing in to download archives.",
+    description: "Get the public report link for a completed Ghidra demonstration run.",
     inputSchema: { type: "object", properties: { run_id: { type: "integer", minimum: 1 } }, required: ["run_id"], additionalProperties: false },
     annotations: { readOnlyHint: true },
   },
@@ -97,56 +96,31 @@ async function callTool(name, args) {
   args = args && typeof args === "object" && !Array.isArray(args) ? args : {};
   if (name === "rea_list_runs") {
     const limit = inputNumber(args.limit, 5, 1, 10);
-    const data = await github("/actions/runs?per_page=" + Math.max(limit, 10));
-    return { repository: REPO, runs: (data.workflow_runs || []).filter(r => r.name === WORKFLOW_NAME || r.name === "REA - Install and Verify" || r.name === "REA - Cloudflare MCP Tests").slice(0, limit).map(safeRun) };
+    const index = await readPublicFile("index.json");
+    if (index.kind !== "fxga-rea-ghidra-demo-index" || !Array.isArray(index.runs)) throw new Error("Invalid public index");
+    return { repository: REPO, source: "published_demo_reports", runs: index.runs.slice(0, limit) };
   }
   if (name === "rea_get_run") {
     const id = requireRunId(args.run_id);
-    const run = await github("/actions/runs/" + id);
-    if (run.name !== WORKFLOW_NAME && run.name !== "REA - Install and Verify") {
-      throw new Error("Run is outside the allowlisted REA workflows");
-    }
-    const jobs = await github("/actions/runs/" + id + "/jobs?per_page=10");
-    return {
-      repository: REPO, run: safeRun(run),
-      jobs: (jobs.jobs || []).slice(0, 10).map(j => ({
-        name: j.name, status: j.status, conclusion: j.conclusion,
-        steps: (j.steps || []).slice(0, 20).map(s => ({
-          name: s.name, status: s.status, conclusion: s.conclusion,
-        })),
-      })),
-    };
+    const report = await readPublicFile(String(id) + ".json");
+    if (report.kind !== "fxga-rea-ghidra-demo" || report.run_id !== id) throw new Error("Invalid run report");
+    return { repository: REPO, run: { id, name: WORKFLOW_NAME, status: "completed", conclusion: "success", url: report.run_url, published_at: report.published_at }, note: "Published completed demo only; check GitHub Actions for live job progress" };
   }
   if (name === "rea_list_artifacts") {
     const id = requireRunId(args.run_id);
-    const run = await github("/actions/runs/" + id);
-    if (run.name !== WORKFLOW_NAME) throw new Error("Only demo reports are supported");
-    const data = await github("/actions/runs/" + id + "/artifacts?per_page=10");
-    return {
-      run_id: id, artifacts: (data.artifacts || []).slice(0, 10).map(a => ({
-        name: a.name, size_in_bytes: a.size_in_bytes,
-        expires_at: a.expires_at, expired: a.expired,
-        github_run_url: run.html_url,
-      })),
-    };
+    const report = await readPublicFile(String(id) + ".json");
+    if (report.kind !== "fxga-rea-ghidra-demo" || report.run_id !== id) throw new Error("Invalid run report");
+    return { run_id: id, artifacts: [{ name: "public-demo-report", url: "https://github.com/" + REPO + "/blob/main/public/reports/" + id + ".json", available: true }] };
   }
   if (name === "rea_get_report" || name === "rea_get_latest_report") {
-    const id = name === "rea_get_latest_report" ? "latest" : String(requireRunId(args.run_id));
+    const file = name === "rea_get_latest_report" ? "latest.json" : String(requireRunId(args.run_id)) + ".json";
     try {
-      const doc = await github("/contents/public/reports/" + id + ".json");
-      if (doc.type !== "file" || doc.encoding !== "base64" || doc.size > 24576 || typeof doc.content !== "string") {
-        throw new Error("Public report has an unexpected format");
-      }
-      const raw = atob(doc.content.replace(/\s/g, ""));
-      const bytes = Uint8Array.from(raw, c => c.charCodeAt(0));
-      const report = JSON.parse(new TextDecoder().decode(bytes));
-      if (report.kind !== "fxga-rea-ghidra-demo" || !validRunId(report.run_id) || (id !== "latest" && String(report.run_id) !== id)) {
-        throw new Error("Public report failed validation");
-      }
+      const report = await readPublicFile(file);
+      if (report.kind !== "fxga-rea-ghidra-demo" || !validRunId(report.run_id) || (name === "rea_get_report" && report.run_id !== requireRunId(args.run_id))) throw new Error("Public report failed validation");
       return report;
-    } catch (err) {
-      if (String(err.message).includes("HTTP 404")) return { status: "not_published", run_id: id, guide: "Use GitHub Actions > REA - Ghidra Cloud Demo > Run workflow. The public report appears after that job completes." };
-      throw err;
+    } catch (e) {
+      if (String(e.message).includes("not published")) return { status: "not_published", run_id: args.run_id || null, guide: "Run the demo from the GitHub Actions website; wait for its public report commit." };
+      throw e;
     }
   }
   throw new Error("Unknown or unavailable tool");
@@ -179,7 +153,7 @@ async function mcp(request) {
       protocolVersion: version,
       capabilities: { tools: { listChanged: false } },
       serverInfo: { name: "FXGA REA Cloud MCP", version: VERSION },
-      instructions: "Public read-only interface for REA Ghidra demo run metadata and published reports. Start analysis manually from GitHub Actions. No command execution, uploads, or workflow dispatch tools.",
+      instructions: "Public read-only interface to published successful Ghidra demos, not live job progress. Start new demos manually via GitHub Actions. No credentials, commands, uploads, or workflow dispatch.",
     }});
   }
   if (req.method === "ping") return responseJson({ jsonrpc: "2.0", id, result: {} });
