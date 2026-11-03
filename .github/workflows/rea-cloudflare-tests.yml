@@ -1,0 +1,34 @@
+name: REA - Cloudflare MCP Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare/worker.mjs'
+      - 'cloudflare/worker.test.mjs'
+      - '.github/workflows/rea-cloudflare-tests.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rea-cloudflare-tests
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - name: Validate and test gateway
+        run: |
+          set -Eeuo pipefail
+          node --check cloudflare/worker.mjs
+          node --test cloudflare/worker.test.mjs
