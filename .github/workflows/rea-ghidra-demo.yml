@@ -63,32 +63,6 @@ jobs:
           timeout -k 10s 8m rea inspect "$GITHUB_WORKSPACE/input/rea-demo" --provider ghidra --json > reports/rea-native-overview.json
           test -s reports/rea-native-overview.json
           echo 'REA native overview written to reports/rea-native-overview.json'
-      - name: Publish demo-only analysis summary to Cloudflare
-        if: success()
-        env:
-          REA_CALLBACK_TOKEN: ${{ secrets.REA_CALLBACK_TOKEN }}
-        run: |
-          set -Eeuo pipefail
-          if [ -z "${REA_CALLBACK_TOKEN:-}" ]; then
-            echo "Cloudflare callback disabled (repository secret REA_CALLBACK_TOKEN is missing)"
-            exit 0
-          fi
-          node --input-type=module <<'NODE'
-          import { readFileSync, writeFileSync } from 'node:fs';
-          const overview = JSON.parse(readFileSync('reports/rea-native-overview.json', 'utf8'));
-          const payload = {
-            kind: 'fxga-rea-ghidra-demo',
-            run_id: Number(process.env.GITHUB_RUN_ID),
-            excerpt: JSON.stringify(overview).slice(0, 12000)
-          };
-          writeFileSync('reports/cloudflare-callback.json', JSON.stringify(payload));
-          NODE
-          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --retry 2 \
-            -X POST \
-            -H "Authorization: Bearer ${REA_CALLBACK_TOKEN}" \
-            -H "Content-Type: application/json" \
-            --data-binary @reports/cloudflare-callback.json \
-            "https://fxga-rea-cloud-mcp.few-nose.workers.dev/reports/upload"
       - name: Upload demo reports (public-safe test only)
         if: always()
         uses: actions/upload-artifact@v4
@@ -97,3 +71,56 @@ jobs:
           path: reports/
           retention-days: 1
           if-no-files-found: ignore
+  publish-public-report:
+    name: Publish only the harmless sample Ghidra results
+    needs: ghidra-demo
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout public reports branch
+        uses: actions/checkout@v4
+      - name: Retrieve the generated demo report
+        uses: actions/download-artifact@v4
+        with:
+          name: rea-ghidra-demo-results
+          path: tmp/reports
+      - name: Write public report and retain only latest ten
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -Eeuo pipefail
+          git fetch origin main
+          git switch -C main origin/main
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          const id = Number(process.env.GITHUB_RUN_ID);
+          if (!Number.isSafeInteger(id) || id <= 0) throw Error('Invalid run ID');
+          const src = 'tmp/reports/rea-native-overview.json';
+          const data = JSON.parse(fs.readFileSync(src, 'utf8'));
+          const dest = 'public/reports';
+          fs.mkdirSync(dest, { recursive: true });
+          const record = {
+            kind: 'fxga-rea-ghidra-demo',
+            run_id: id,
+            repository: 'geetechenterpriseai/REA',
+            source: 'official REA + Ghidra generated sample executable',
+            published_at: new Date().toISOString(),
+            run_url: 'https://github.com/geetechenterpriseai/REA/actions/runs/' + id,
+            note: 'Public demonstration only. No private files were analyzed.',
+            excerpt: JSON.stringify(data).slice(0, 12000),
+          };
+          const payload = JSON.stringify(record, null, 2) + '\n';
+          fs.writeFileSync(path.join(dest, id + '.json'), payload);
+          fs.writeFileSync(path.join(dest, 'latest.json'), payload);
+          const ids = fs.readdirSync(dest).filter(x => /^\d+\.json$/.test(x)).sort((a,b) => Number(a.slice(0,-5))-Number(b.slice(0,-5)));
+          for (const name of ids.slice(0, -10)) fs.unlinkSync(path.join(dest, name));
+          NODE
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A public/reports
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Publish safe REA Ghidra demo result from run ${{ github.run_id }}'
+          git push origin HEAD:main
