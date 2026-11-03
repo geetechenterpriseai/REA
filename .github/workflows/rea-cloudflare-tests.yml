@@ -32,6 +32,7 @@ jobs:
           set -Eeuo pipefail
           node --check cloudflare/worker.mjs
           node --test cloudflare/worker.test.mjs
+          echo 'Public MCP unit tests completed'
       - name: Smoke-test live Cloudflare endpoint
         run: |
           set -Eeuo pipefail
