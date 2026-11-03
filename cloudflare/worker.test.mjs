@@ -48,15 +48,15 @@ test('run IDs are validated', async () => {
   const res = await app.fetch(post('tools/call', { name: 'rea_get_run', arguments: { run_id: -5 } }), {});
   assert.equal((await res.json()).result.isError, true);
 });
-test('public GitHub Actions runs are available without token', async () => {
+test('public completed reports are indexed from GitHub CDN without a token', async () => {
   const old = globalThis.fetch;
   try {
-    globalThis.fetch = async (_url, options) => {
+    globalThis.fetch = async (url, options) => {
+      assert.match(String(url), /raw\.githubusercontent\.com.*\/index\.json/);
       assert.equal(options.method, 'GET');
       assert.equal(options.headers.Authorization, undefined);
-      return new Response(JSON.stringify({ workflow_runs: [
+      return new Response(JSON.stringify({ kind: 'fxga-rea-ghidra-demo-index', runs: [
         { name: 'REA - Ghidra Cloud Demo', id: 12345, status: 'completed', conclusion: 'success' },
-        { name: 'Unrelated Workflow', id: 8, status: 'completed' },
       ] }), { status: 200 });
     };
     const res = await app.fetch(post('tools/call', { name: 'rea_list_runs', arguments: { limit: 5 } }), {});
@@ -65,14 +65,14 @@ test('public GitHub Actions runs are available without token', async () => {
     assert.equal(data.runs[0].id, 12345);
   } finally { globalThis.fetch = old; }
 });
-test('public report is readable from GitHub without token', async () => {
+test('latest public report is readable through the CDN without a token', async () => {
   const old = globalThis.fetch;
   try {
     const record = { kind: 'fxga-rea-ghidra-demo', run_id: 12345, excerpt: '{"demo":true}' };
     globalThis.fetch = async (url, opts) => {
-      assert.match(String(url), /public\/reports\/latest\.json/);
+      assert.match(String(url), /raw\.githubusercontent\.com.*\/latest\.json/);
       assert.equal(opts.headers.Authorization, undefined);
-      return new Response(JSON.stringify({ type: 'file', encoding: 'base64', size: 100, content: Buffer.from(JSON.stringify(record)).toString('base64') }), { status: 200 });
+      return new Response(JSON.stringify(record), { status: 200 });
     };
     const res = await app.fetch(post('tools/call', { name: 'rea_get_latest_report', arguments: {} }), {});
     const data = await readText(res);
